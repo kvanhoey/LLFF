@@ -26,6 +26,7 @@ def load_colmap_data(realdir):
     imdata = read_model.read_images_binary(imagesfile)
     
     w2c_mats = []
+    ids = []
     bottom = np.array([0,0,0,1.]).reshape([1,4])
     
     names = [imdata[k].name for k in imdata]
@@ -33,10 +34,12 @@ def load_colmap_data(realdir):
     perm = np.argsort(names)
     for k in imdata:
         im = imdata[k]
+        id = im.id
         R = im.qvec2rotmat()
         t = im.tvec.reshape([3,1])
         m = np.concatenate([np.concatenate([R, t], 1), bottom], 0)
         w2c_mats.append(m)
+        ids.append(id)
     
     w2c_mats = np.stack(w2c_mats, 0)
     c2w_mats = np.linalg.inv(w2c_mats)
@@ -50,20 +53,23 @@ def load_colmap_data(realdir):
     # must switch to [-u, r, -t] from [r, -u, t], NOT [r, u, -t]
     poses = np.concatenate([poses[:, 1:2, :], poses[:, 0:1, :], -poses[:, 2:3, :], poses[:, 3:4, :], poses[:, 4:5, :]], 1)
     
-    return poses, pts3d, perm
+    return poses, pts3d, perm, ids
 
 
-def save_poses(basedir, poses, pts3d, perm):
+def save_poses(basedir, poses, pts3d, perm, ids):
     pts_arr = []
     vis_arr = []
+    # id_max = max(ids)
     for k in pts3d:
         pts_arr.append(pts3d[k].xyz)
         cams = [0] * poses.shape[-1]
+        # cams = [0] * (id_max+1)
         for ind in pts3d[k].image_ids:
-            if len(cams) < ind - 1:
+            id = ids.index(ind)
+            if len(cams) <= id - 1:
                 print('ERROR: the correct camera poses for current points cannot be accessed')
                 return
-            cams[ind-1] = 1
+            cams[id-1] = 1
         vis_arr.append(cams)
 
     pts_arr = np.array(pts_arr)
@@ -271,9 +277,9 @@ def gen_poses(basedir, match_type, factors=None):
         
     print( 'Post-colmap')
     
-    poses, pts3d, perm = load_colmap_data(basedir)
+    poses, pts3d, perm, ids = load_colmap_data(basedir)
     
-    save_poses(basedir, poses, pts3d, perm)
+    save_poses(basedir, poses, pts3d, perm, ids)
     
     if factors is not None:
         print( 'Factors:', factors)
