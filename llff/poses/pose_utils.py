@@ -57,20 +57,27 @@ def load_colmap_data(realdir):
 
 
 def save_poses(basedir, poses, pts3d, perm, ids):
+    imgdir = os.path.join(basedir, 'images')
+    imgs = [os.path.join(imgdir, f) for f in sorted(os.listdir(imgdir))]
+    imgs = [f for f in imgs if any([f.endswith(ex) for ex in ['JPG', 'jpg', 'png', 'jpeg', 'PNG']])]
+    nb_images = len(imgs)
+    imgs_used = [0] * nb_images
+
     pts_arr = []
     vis_arr = []
-    # id_max = max(ids)
     for k in pts3d:
         pts_arr.append(pts3d[k].xyz)
         cams = [0] * poses.shape[-1]
-        # cams = [0] * (id_max+1)
         for ind in pts3d[k].image_ids:
             id = ids.index(ind)
             if len(cams) <= id - 1:
                 print('ERROR: the correct camera poses for current points cannot be accessed')
                 return
             cams[id-1] = 1
+            imgs_used[ind-1] = 1
         vis_arr.append(cams)
+    nb_imgs_used = sum(imgs_used)
+    assert(nb_imgs_used == poses.shape[-1])
 
     pts_arr = np.array(pts_arr)
     vis_arr = np.array(vis_arr)
@@ -92,7 +99,12 @@ def save_poses(basedir, poses, pts3d, perm, ids):
     save_arr = np.array(save_arr)
     
     np.save(os.path.join(basedir, 'poses_bounds.npy'), save_arr)
-            
+    
+    pos = np.where(np.array(imgs_used) == 0)[0]
+    print(imgs[i] for i in pos)
+    with open(os.path.join(basedir,'unused_files.txt'), 'w') as f:
+        for line in [imgs[i] for i in pos]:
+            f.write(f"{line}\n")
 
 
 
